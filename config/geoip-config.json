@@ -1,0 +1,27 @@
+{
+  "input": [
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
+        "name": "ru",
+        "uri": "./output/ru-ip.txt"
+      }
+    },
+    {
+      "type": "private",
+      "action": "add"
+    }
+  ],
+  "output": [
+    {
+      "type": "v2rayGeoIPDat",
+      "action": "output",
+      "args": {
+        "outputDir": "./output",
+        "outputName": "geoip.dat",
+        "wantedList": ["ru", "private"]
+      }
+    }
+  ]
+}

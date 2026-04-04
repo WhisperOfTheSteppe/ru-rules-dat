@@ -1,0 +1,72 @@
+# Russian services on non-.ru/.su/.xn--p1ai TLDs -> DIRECT
+# One domain per line. Subdomains are matched automatically.
+# Lines starting with # are comments.
+
+# --- Social ---
+vk.com
+vk.me
+vk.cc
+ok.ru
+odnoklassniki.ru
+
+# --- Yandex ---
+yandex.com
+yandex.net
+yandex.by
+yandex.kz
+yastatic.net
+yandex.eu
+ya.ru
+
+# --- Media / Streaming ---
+dzen.com
+ivi.ru
+kinopoisk.ru
+okko.tv
+more.tv
+wink.ru
+premier.one
+rutube.ru
+smotrim.ru
+
+# --- Marketplaces ---
+wildberries.ru
+wb.ru
+ozon.ru
+ozon.com
+
+# --- Banks ---
+sberbank.ru
+sber.com
+tinkoff.ru
+tbank.ru
+vtb.ru
+alfabank.ru
+
+# --- Government ---
+gosuslugi.ru
+mos.ru
+nalog.gov.ru
+
+# --- Mail / Cloud ---
+mail.ru
+mymail.ru
+list.ru
+bk.ru
+inbox.ru
+
+# --- Messengers ---
+icq.com
+icq.net
+
+# --- Other ---
+2gis.ru
+avito.ru
+cian.ru
+hh.ru
+habr.com
+pikabu.ru
+lenta.ru
+ria.ru
+rbc.ru
+kommersant.ru
