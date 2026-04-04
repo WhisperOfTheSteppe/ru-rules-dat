@@ -95,69 +95,45 @@ CONF
 echo "Shadowrocket files generated"
 
 echo "=== Step 4: Generate geoip.dat ==="
-if command -v geoip &> /dev/null; then
-  # Generate geoip-config.json with correct paths
-  cat > "${TEMP_DIR}/geoip-config.json" <<GEOIP
-{
-  "input": [
-    {
-      "type": "text",
-      "action": "add",
-      "args": {
-        "name": "ru",
-        "uri": "${OUTPUT_DIR}/ru-ip.txt"
-      }
-    },
-    {
-      "type": "private",
-      "action": "add"
-    }
-  ],
-  "output": [
-    {
-      "type": "v2rayGeoIPDat",
-      "action": "output",
-      "args": {
-        "outputDir": "${OUTPUT_DIR}",
-        "outputName": "geoip.dat",
-        "wantedList": ["ru", "private"]
-      }
-    }
-  ]
-}
-GEOIP
-  geoip -c "${TEMP_DIR}/geoip-config.json"
-  echo "geoip.dat generated"
-else
-  echo "WARNING: geoip CLI not found, skipping geoip.dat generation"
-fi
+PYTHON_CMD="python3"
+command -v python3 &> /dev/null || PYTHON_CMD="python"
+
+$PYTHON_CMD "${REPO_ROOT}/scripts/generate_geoip_dat.py" \
+  "${OUTPUT_DIR}/ru-ip.txt" \
+  "${OUTPUT_DIR}/geoip.dat"
+echo "geoip.dat generated"
 
 echo "=== Step 5: Generate sing-box .srs rule-sets ==="
-if command -v sing-box &> /dev/null; then
-  # Build IP rule-set JSON
-  python3 -c "
-import json, sys
-cidrs = [line.strip() for line in open('${OUTPUT_DIR}/ru-ip.txt') if line.strip()]
-rules = {'version': 2, 'rules': [{'ip_cidr': cidrs}]}
-json.dump(rules, open('${TEMP_DIR}/ru-ip.json', 'w'), indent=2)
-print(f'IP rule-set: {len(cidrs)} CIDRs')
-"
-  sing-box rule-set compile "${TEMP_DIR}/ru-ip.json" -o "${OUTPUT_DIR}/ru-ip.srs"
-
-  # Build domain rule-set JSON
-  python3 -c "
-import json, sys
-domains = [line.strip() for line in open('${OUTPUT_DIR}/ru-domains.txt') if line.strip()]
-rules = {'version': 2, 'rules': [{'domain_suffix': domains}]}
-json.dump(rules, open('${TEMP_DIR}/ru-domains.json', 'w'), indent=2)
-print(f'Domain rule-set: {len(domains)} domains')
-"
-  sing-box rule-set compile "${TEMP_DIR}/ru-domains.json" -o "${OUTPUT_DIR}/ru-domains.srs"
-
-  echo "sing-box .srs files generated"
-else
-  echo "WARNING: sing-box CLI not found, skipping .srs generation"
+SINGBOX_CMD="sing-box"
+if ! command -v sing-box &> /dev/null; then
+  if [ -f "${REPO_ROOT}/scripts/sing-box.exe" ]; then
+    SINGBOX_CMD="${REPO_ROOT}/scripts/sing-box.exe"
+  elif [ -f "${REPO_ROOT}/scripts/sing-box" ]; then
+    SINGBOX_CMD="${REPO_ROOT}/scripts/sing-box"
+  fi
 fi
+
+# Build IP rule-set JSON
+$PYTHON_CMD - "${OUTPUT_DIR}/ru-ip.txt" "${TEMP_DIR}/ru-ip.json" <<'PYSCRIPT'
+import json, sys
+infile, outfile = sys.argv[1], sys.argv[2]
+cidrs = [line.strip() for line in open(infile) if line.strip()]
+json.dump({'version': 2, 'rules': [{'ip_cidr': cidrs}]}, open(outfile, 'w'), indent=2)
+print(f'IP rule-set: {len(cidrs)} CIDRs')
+PYSCRIPT
+$SINGBOX_CMD rule-set compile "${TEMP_DIR}/ru-ip.json" -o "${OUTPUT_DIR}/ru-ip.srs"
+
+# Build domain rule-set JSON
+$PYTHON_CMD - "${OUTPUT_DIR}/ru-domains.txt" "${TEMP_DIR}/ru-domains.json" <<'PYSCRIPT'
+import json, sys
+infile, outfile = sys.argv[1], sys.argv[2]
+domains = [line.strip() for line in open(infile) if line.strip()]
+json.dump({'version': 2, 'rules': [{'domain_suffix': domains}]}, open(outfile, 'w'), indent=2)
+print(f'Domain rule-set: {len(domains)} domains')
+PYSCRIPT
+$SINGBOX_CMD rule-set compile "${TEMP_DIR}/ru-domains.json" -o "${OUTPUT_DIR}/ru-domains.srs"
+
+echo "sing-box .srs files generated"
 
 echo "=== Step 6: Summary ==="
 echo "Output files:"

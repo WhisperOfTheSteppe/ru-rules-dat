@@ -1,3 +1,5 @@
 output/
 tmp/
 *.zone
+scripts/sing-box.exe
+scripts/sing-box
