@@ -94,14 +94,15 @@ CONF
 
 echo "Shadowrocket files generated"
 
-echo "=== Step 4: Generate geoip.dat ==="
+echo "=== Step 4: Download geoip.dat ==="
 PYTHON_CMD="python3"
 command -v python3 &> /dev/null || PYTHON_CMD="python"
 
-$PYTHON_CMD "${REPO_ROOT}/scripts/generate_geoip_dat.py" \
-  "${OUTPUT_DIR}/ru-ip.txt" \
-  "${OUTPUT_DIR}/geoip.dat"
-echo "geoip.dat generated"
+# Use Loyalsoldier's geoip.dat (all countries including RU + private)
+curl -fsSL -o "${OUTPUT_DIR}/geoip.dat" \
+  "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat"
+GEOIP_SIZE=$(du -h "${OUTPUT_DIR}/geoip.dat" | cut -f1)
+echo "geoip.dat downloaded (${GEOIP_SIZE})"
 
 echo "=== Step 5: Generate sing-box .srs rule-sets ==="
 SINGBOX_CMD="sing-box"
