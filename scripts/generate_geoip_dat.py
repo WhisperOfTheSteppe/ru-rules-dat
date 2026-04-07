@@ -134,8 +134,8 @@ def main():
 
     # Encode
     entries = [
-        ("ru", ru_cidrs),
-        ("private", private_cidrs),
+        ("RU", ru_cidrs),
+        ("PRIVATE", private_cidrs),
     ]
     data = encode_geoip_list(entries)
 
