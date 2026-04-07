@@ -1,38 +1,86 @@
 #!/usr/bin/env python3
 """Generate geoip.dat (V2Ray protobuf format) from plain CIDR text files.
 
-V2Ray GeoIP protobuf schema:
+Uses google.protobuf library with dynamic message definitions
+to produce XrayCore-compatible output.
+
+V2Ray GeoIP protobuf schema (proto3):
   message CIDR { bytes ip = 1; uint32 prefix = 2; }
   message GeoIP { string country_code = 1; repeated CIDR cidr = 2; }
   message GeoIPList { repeated GeoIP entry = 1; }
-
-We encode manually to avoid needing .proto compilation.
 """
 
-import struct
 import sys
 import socket
 import os
 
-
-def encode_varint(value):
-    """Encode an integer as a protobuf varint."""
-    parts = []
-    while value > 0x7F:
-        parts.append((value & 0x7F) | 0x80)
-        value >>= 7
-    parts.append(value & 0x7F)
-    return bytes(parts)
+from google.protobuf import descriptor_pb2
+from google.protobuf import descriptor_pool
+from google.protobuf import symbol_database
+from google.protobuf.internal import decoder
+from google.protobuf.internal import encoder
 
 
-def encode_field(field_number, wire_type, data):
-    """Encode a protobuf field."""
-    tag = encode_varint((field_number << 3) | wire_type)
-    if wire_type == 2:  # length-delimited
-        return tag + encode_varint(len(data)) + data
-    elif wire_type == 0:  # varint
-        return tag + encode_varint(data)
-    return tag + data
+def build_message_classes():
+    """Build protobuf message classes dynamically from schema."""
+    file_proto = descriptor_pb2.FileDescriptorProto()
+    file_proto.name = "geoip.proto"
+    file_proto.package = "v2ray.core.app.router"
+    file_proto.syntax = "proto3"
+
+    # CIDR message
+    cidr_desc = file_proto.message_type.add()
+    cidr_desc.name = "CIDR"
+    f = cidr_desc.field.add()
+    f.name = "ip"
+    f.number = 1
+    f.type = descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
+    f.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+    f = cidr_desc.field.add()
+    f.name = "prefix"
+    f.number = 2
+    f.type = descriptor_pb2.FieldDescriptorProto.TYPE_UINT32
+    f.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+
+    # GeoIP message
+    geoip_desc = file_proto.message_type.add()
+    geoip_desc.name = "GeoIP"
+    f = geoip_desc.field.add()
+    f.name = "country_code"
+    f.number = 1
+    f.type = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    f.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+    f = geoip_desc.field.add()
+    f.name = "cidr"
+    f.number = 2
+    f.type = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
+    f.type_name = ".v2ray.core.app.router.CIDR"
+    f.label = descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+
+    # GeoIPList message
+    list_desc = file_proto.message_type.add()
+    list_desc.name = "GeoIPList"
+    f = list_desc.field.add()
+    f.name = "entry"
+    f.number = 1
+    f.type = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
+    f.type_name = ".v2ray.core.app.router.GeoIP"
+    f.label = descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED
+
+    # Register in pool
+    pool = descriptor_pool.DescriptorPool()
+    pool.Add(file_proto)
+
+    from google.protobuf.message_factory import GetMessageClass
+
+    GeoIPList = GetMessageClass(
+        pool.FindMessageTypeByName("v2ray.core.app.router.GeoIPList"))
+    GeoIP = GetMessageClass(
+        pool.FindMessageTypeByName("v2ray.core.app.router.GeoIP"))
+    CIDR = GetMessageClass(
+        pool.FindMessageTypeByName("v2ray.core.app.router.CIDR"))
+
+    return GeoIPList, GeoIP, CIDR
 
 
 def parse_cidr(cidr_str):
@@ -46,7 +94,7 @@ def parse_cidr(cidr_str):
         prefix = int(prefix_str)
     else:
         ip_str = cidr_str
-        prefix = 32  # single IP
+        prefix = 32
 
     try:
         ip_bytes = socket.inet_aton(ip_str)
@@ -60,31 +108,6 @@ def parse_cidr(cidr_str):
     return (ip_bytes, prefix)
 
 
-def encode_cidr(ip_bytes, prefix):
-    """Encode a CIDR as protobuf CIDR message."""
-    msg = encode_field(1, 2, ip_bytes)  # ip
-    msg += encode_field(2, 0, prefix)   # prefix
-    return msg
-
-
-def encode_geoip(country_code, cidrs):
-    """Encode a GeoIP entry."""
-    msg = encode_field(1, 2, country_code.encode('utf-8'))  # country_code
-    for ip_bytes, prefix in cidrs:
-        cidr_msg = encode_cidr(ip_bytes, prefix)
-        msg += encode_field(2, 2, cidr_msg)  # cidr (repeated)
-    return msg
-
-
-def encode_geoip_list(entries):
-    """Encode the GeoIPList."""
-    msg = b''
-    for country_code, cidrs in entries:
-        geoip_msg = encode_geoip(country_code, cidrs)
-        msg += encode_field(1, 2, geoip_msg)  # entry (repeated)
-    return msg
-
-
 def load_cidrs_from_file(filepath):
     """Load CIDRs from a text file (one per line)."""
     cidrs = []
@@ -96,7 +119,6 @@ def load_cidrs_from_file(filepath):
     return cidrs
 
 
-# Private subnets (RFC 1918, RFC 5737, RFC 6598, etc.)
 PRIVATE_CIDRS = [
     ("10.0.0.0", 8),
     ("100.64.0.0", 10),
@@ -123,23 +145,38 @@ def main():
     ru_ip_file = sys.argv[1]
     output_file = sys.argv[2]
 
+    GeoIPList, GeoIP, CIDR = build_message_classes()
+
     # Load RU CIDRs
     print(f"Loading RU CIDRs from {ru_ip_file}...")
-    ru_cidrs = load_cidrs_from_file(ru_ip_file)
-    print(f"  {len(ru_cidrs)} RU CIDRs loaded")
+    ru_cidrs_raw = load_cidrs_from_file(ru_ip_file)
+    print(f"  {len(ru_cidrs_raw)} RU CIDRs loaded")
 
     # Build private CIDRs
-    private_cidrs = [(socket.inet_aton(ip), prefix) for ip, prefix in PRIVATE_CIDRS]
-    print(f"  {len(private_cidrs)} private CIDRs")
+    private_cidrs_raw = [(socket.inet_aton(ip), prefix) for ip, prefix in PRIVATE_CIDRS]
+    print(f"  {len(private_cidrs_raw)} private CIDRs")
 
-    # Encode
-    entries = [
-        ("RU", ru_cidrs),
-        ("PRIVATE", private_cidrs),
-    ]
-    data = encode_geoip_list(entries)
+    # Build protobuf message
+    geoip_list = GeoIPList()
 
-    # Write
+    # RU entry
+    ru_entry = geoip_list.entry.add()
+    ru_entry.country_code = "RU"
+    for ip_bytes, prefix in ru_cidrs_raw:
+        cidr = ru_entry.cidr.add()
+        cidr.ip = ip_bytes
+        cidr.prefix = prefix
+
+    # PRIVATE entry
+    private_entry = geoip_list.entry.add()
+    private_entry.country_code = "PRIVATE"
+    for ip_bytes, prefix in private_cidrs_raw:
+        cidr = private_entry.cidr.add()
+        cidr.ip = ip_bytes
+        cidr.prefix = prefix
+
+    # Serialize and write
+    data = geoip_list.SerializeToString()
     with open(output_file, 'wb') as f:
         f.write(data)
 
