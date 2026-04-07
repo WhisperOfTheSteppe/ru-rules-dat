@@ -102,6 +102,11 @@ $PYTHON_CMD "${REPO_ROOT}/scripts/generate_geoip_dat.py" \
   "${OUTPUT_DIR}/ru-ip.txt" \
   "${OUTPUT_DIR}/geoip.dat"
 
+echo "=== Step 4b: Generate geosite.dat ==="
+$PYTHON_CMD "${REPO_ROOT}/scripts/generate_geosite_dat.py" \
+  "${OUTPUT_DIR}/ru-domains.txt" \
+  "${OUTPUT_DIR}/geosite.dat"
+
 echo "=== Step 5: Generate sing-box .srs rule-sets ==="
 SINGBOX_CMD="sing-box"
 if ! command -v sing-box &> /dev/null; then
