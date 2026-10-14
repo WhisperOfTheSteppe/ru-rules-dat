@@ -16,6 +16,7 @@ All files are published to the [`release`](https://github.com/WhisperOfTheSteppe
 | `ru-domains-shadowrocket.list` | `DOMAIN-SUFFIX,domain` | Shadowrocket |
 | `private-ip-shadowrocket.list` | `IP-CIDR,x.x.x.x/y,no-resolve` | Shadowrocket |
 | `shadowrocket.conf` | Full config | Shadowrocket |
+| `shadowrocket-rdp.conf` | Same as `shadowrocket.conf` + `10.9.0.3` routed via PROXY (maintainer's own tunnel host; not needed by others) | Shadowrocket |
 | `geoip.dat` | V2Ray protobuf (`ru`, `private`) | Happ, V2RayNG |
 | `ru-ip.srs` | sing-box binary rule-set | NekoBox, sing-box |
 | `ru-domains.srs` | sing-box binary rule-set | NekoBox, sing-box |

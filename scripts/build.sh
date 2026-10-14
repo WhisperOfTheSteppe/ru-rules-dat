@@ -92,6 +92,29 @@ RULE-SET,${BASE_URL}/private-ip-shadowrocket.list,DIRECT
 FINAL,PROXY
 CONF
 
+# shadowrocket-rdp.conf — same config + route to the tunnel host through the proxy (own devices only).
+# Derived from shadowrocket.conf, so every change above reaches both files.
+#  - bypass-tun: 10.0.0.0/8 minus the host, so only that one address enters the VPN tunnel
+#  - first [Rule]: the host -> PROXY, above "Private subnets -> DIRECT" (which covers 10.0.0.0/8)
+TUNNEL_HOST="10.9.0.3"
+TEN_MINUS_HOST="10.0.0.0/13, 10.8.0.0/16, 10.9.0.0/31, 10.9.0.2/32, 10.9.0.4/30, 10.9.0.8/29, 10.9.0.16/28, 10.9.0.32/27, 10.9.0.64/26, 10.9.0.128/25, 10.9.1.0/24, 10.9.2.0/23, 10.9.4.0/22, 10.9.8.0/21, 10.9.16.0/20, 10.9.32.0/19, 10.9.64.0/18, 10.9.128.0/17, 10.10.0.0/15, 10.12.0.0/14, 10.16.0.0/12, 10.32.0.0/11, 10.64.0.0/10, 10.128.0.0/9"
+awk -v host="${TUNNEL_HOST}" -v ten="${TEN_MINUS_HOST}" '
+  /^bypass-tun = / { sub(/10\.0\.0\.0\/8/, ten) }
+  { print }
+  /^\[Rule\]$/ {
+    print "# Tunnel host -> PROXY (must stay above Private subnets -> DIRECT)"
+    print "IP-CIDR," host "/32,PROXY,no-resolve"
+    print ""
+  }
+' "${OUTPUT_DIR}/shadowrocket.conf" > "${OUTPUT_DIR}/shadowrocket-rdp.conf"
+
+# Fail the build instead of publishing a broken variant
+grep -q "^IP-CIDR,${TUNNEL_HOST}/32,PROXY,no-resolve$" "${OUTPUT_DIR}/shadowrocket-rdp.conf"
+grep -q "^bypass-tun = 10\.0\.0\.0/13, " "${OUTPUT_DIR}/shadowrocket-rdp.conf"
+if grep -q "^bypass-tun = .*10\.0\.0\.0/8" "${OUTPUT_DIR}/shadowrocket-rdp.conf"; then
+  echo "shadowrocket-rdp.conf: 10.0.0.0/8 still in bypass-tun" >&2; exit 1
+fi
+
 echo "Shadowrocket files generated"
 
 echo "=== Step 4: Generate geoip.dat ==="
