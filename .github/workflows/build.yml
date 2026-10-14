@@ -11,6 +11,7 @@ on:
       - 'data/**'
       - 'scripts/**'
       - 'config/**'
+      - '.github/workflows/**'
 
 jobs:
   build:
@@ -39,6 +40,16 @@ jobs:
           tar -xzf sing-box.tar.gz
           sudo mv "sing-box-${SINGBOX_VERSION}-linux-amd64/sing-box" /usr/local/bin/
           sing-box version
+
+      # generate_geoip_dat.py / generate_geosite_dat.py import google.protobuf
+      # (5.29.x reproduces the published geoip.dat/geosite.dat byte for byte)
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: python3 -m pip install 'protobuf==5.29.*'
 
       - name: Run build script
         run: |
